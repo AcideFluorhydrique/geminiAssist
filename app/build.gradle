@@ -1,0 +1,36 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 35
+    namespace 'io.github.acidefluorhydrique.geminiassist'
+    android.buildFeatures.buildConfig true
+    defaultConfig {
+        applicationId "io.github.acidefluorhydrique.geminiassist"
+        minSdk 21
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    
+    lintOptions {
+        disable "MissingTranslation" // Translation is crowd-sourced, so this lint warning is useless
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'com.github.woheller69:FreeDroidWarn:+'
+}

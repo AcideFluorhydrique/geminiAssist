@@ -1,0 +1,4 @@
+Gemini Assist is a simple WebView wrapper for Google Gemini. It blocks all URLs that are not essential for functioning.
+
+You can switch on/off blocking by clicking the button at the top right.
+Swipe up a bit to hide the button.
