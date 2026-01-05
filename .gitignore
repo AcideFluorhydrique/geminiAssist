@@ -1,15 +1,27 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
+# Gradle 緩存與編譯輸出
+.gradle/
+build/
 /build
-/captures
+app/build/
+
+# IDE 配置文件 (Android Studio / IntelliJ)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# 本地環境配置
+local.properties
+
+# 操作系統臨時文件
+.DS_Store
+Thumbs.db
+
+# Android 專用
+captures/
 .externalNativeBuild
 .cxx
-local.properties
+
+# 編譯生成的安裝包
+*.apk
+*.aab
