@@ -4,6 +4,8 @@ build/
 /build
 app/build/
 
+app/release/
+
 # IDE 配置文件 (Android Studio / IntelliJ)
 .idea/
 *.iml

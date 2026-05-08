@@ -24,7 +24,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.AssetManager;
+
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -56,8 +56,7 @@ import androidx.webkit.URLUtilCompat;
 
 import org.woheller69.freeDroidWarn.FreeDroidWarn;
 
-import java.io.IOException;
-import java.io.InputStream;
+
 import java.util.ArrayList;
 
 public class MainActivity extends Activity {
@@ -218,19 +217,7 @@ public class MainActivity extends Activity {
                 }
                 if (!allowed) {
                     Log.d(TAG, "[shouldInterceptRequest][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
-                    if (request.getUrl().getHost().equals("login.microsoftonline.com") || request.getUrl().getHost().equals("accounts.google.com") || request.getUrl().getHost().equals("appleid.apple.com")){
-                        Toast.makeText(context, context.getString(R.string.error_microsoft_google), Toast.LENGTH_LONG).show();
-                        resetChat();
-                    }
-                    if (request.getUrl().toString().contains("gravatar.com/avatar/")) {
-                        AssetManager assetManager = getAssets();
-                        try {
-                            InputStream inputStream = assetManager.open("avatar.png");
-                            return new WebResourceResponse("image/png","UTF-8",inputStream);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
+
                     return new WebResourceResponse("text/javascript", "UTF-8", null); //Deny URLs not on ALLOWLIST
                 }
                 return null;
@@ -255,10 +242,7 @@ public class MainActivity extends Activity {
                 }
                 if (!allowed) {
                     Log.d(TAG, "[shouldOverrideUrlLoading][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
-                    if (request.getUrl().getHost().equals("login.microsoftonline.com") || request.getUrl().getHost().equals("accounts.google.com") || request.getUrl().getHost().equals("appleid.apple.com")){
-                        Toast.makeText(context, context.getString(R.string.error_microsoft_google), Toast.LENGTH_LONG).show();
-                        resetChat();
-                    }
+
                     return true; //Deny URLs not on ALLOWLIST
                 }
                 return false;
@@ -348,7 +332,9 @@ public class MainActivity extends Activity {
         allowedDomains.add("gemini.google.com");
         allowedDomains.add("accounts.google.com");
         allowedDomains.add("gstatic.com");
+        allowedDomains.add("googletagmanager.com");
         allowedDomains.add("googleusercontent.com");
+        allowedDomains.add("googleapis.com");
     }
 
     @Override

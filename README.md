@@ -6,7 +6,7 @@ work on certified Android devices after that time.
 ```
 
 
-**Support Developer** 📧 `ariel@netc.fr`
+**Support Developer**  `AcideFluorhydrique`
 
 <!-- ---
 
