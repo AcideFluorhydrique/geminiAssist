@@ -19,6 +19,10 @@ work on certified Android devices after that time.
 
 # geminiAssist
 
+[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
+    alt="Get it on F-Droid"
+    height="80">](https://f-droid.org/en/packages/io.github.acidefluorhydrique.geminiassist/)
+
 geminiAssist is a simple WebView wrapper for Gemini. It blocks all URLs which are not essential.
 
 - 🔒 **Privacy-focused**: Blocks unnecessary URLs and tracking
