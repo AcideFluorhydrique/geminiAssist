@@ -1,0 +1,3 @@
+Updated app icon.
+Removed unused code inherited from upstream.
+Added missing allowed domains for full functionality.
