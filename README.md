@@ -19,12 +19,27 @@ work on certified Android devices after that time.
 
 # geminiAssist
 
+<!--
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
     alt="Get it on F-Droid"
     height="80">](https://f-droid.org/en/packages/io.github.acidefluorhydrique.geminiassist/)
 [<img src="https://github.com/machiav3lli/oandbackupx/blob/034b226cea5c1b30eb4f6a6f313e4dadcbb0ece4/badge_github.png"
     alt="Get it on GitHub"
     height="80">](https://github.com/AcideFluorhydrique/geminiAssist/releases)
+
+-->
+
+<p>
+  <a href="https://f-droid.org/en/packages/io.github.acidefluorhydrique.geminiassist/">
+    <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="70" />
+  </a>
+  <a href="https://github.com/AcideFluorhydrique/geminiAssist/releases">
+    <img src="https://github.com/mmlado/GapSign/blob/main/assets/badges/badge_github.png" alt="Get it on GitHub" height="70" />
+  </a>
+  <a href="https://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://f-droid.org/en/packages/io.github.acidefluorhydrique.geminiassist/">
+    <img src="https://github.com/mmlado/GapSign/blob/main/assets/badges/badge_obtainium.png" alt="Get it on Obtainium" height="70" />
+  </a>
+</p>
 
 
 geminiAssist is a simple WebView wrapper for Gemini. It blocks all URLs which are not essential.
