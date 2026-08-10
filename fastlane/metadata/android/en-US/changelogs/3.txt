@@ -1,0 +1,4 @@
+Tightened the URL allowlist: dropped the blanket google.com entry and the Google Tag Manager tracking domain.
+Allowlist matching now respects domain boundaries, so lookalike domains no longer pass.
+Long press the restrict button to reset the chat. This clears cookies, cache and site data, and signs you out.
+Log main frame load errors to help with troubleshooting.

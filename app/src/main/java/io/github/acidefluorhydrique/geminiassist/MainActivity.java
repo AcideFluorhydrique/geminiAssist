@@ -18,6 +18,7 @@ import static android.webkit.WebView.HitTestResult.SRC_ANCHOR_TYPE;
 import static android.webkit.WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE;
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -41,6 +42,7 @@ import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
 import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -103,6 +105,19 @@ public class MainActivity extends Activity {
                 chatWebSettings.setUserAgentString(modUserAgent()); //Needed for login via Google
             }
             chatWebView.reload();
+        });
+
+        restrictedButton.setOnLongClickListener(v -> {
+            new AlertDialog.Builder(context)
+                    .setTitle(R.string.reset_chat)
+                    .setMessage(R.string.reset_chat_confirm)
+                    .setPositiveButton(R.string.dialog_OK_button, (dialog, which) -> {
+                        resetChat();
+                        Toast.makeText(context, R.string.reset_chat_done, Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton(R.string.dialog_NO_button, null)
+                    .show();
+            return true;
         });
 
         swipeTouchListener = new SwipeTouchListener(context) {
@@ -209,15 +224,8 @@ public class MainActivity extends Activity {
                     Log.d(TAG, "[shouldInterceptRequest][NON-HTTPS] Blocked access to " + request.getUrl().toString());
                     return new WebResourceResponse("text/javascript", "UTF-8", null); //Deny URLs that aren't HTTPS
                 }
-                boolean allowed = false;
-                for (String url : allowedDomains) {
-                    if (request.getUrl().getHost().endsWith(url)) {
-                        allowed = true;
-                    }
-                }
-                if (!allowed) {
+                if (!isAllowed(request.getUrl().getHost())) {
                     Log.d(TAG, "[shouldInterceptRequest][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
-
                     return new WebResourceResponse("text/javascript", "UTF-8", null); //Deny URLs not on ALLOWLIST
                 }
                 return null;
@@ -234,18 +242,18 @@ public class MainActivity extends Activity {
                     Log.d(TAG, "[shouldOverrideUrlLoading][NON-HTTPS] Blocked access to " + request.getUrl().toString());
                     return true; //Deny URLs that aren't HTTPS
                 }
-                boolean allowed = false;
-                for (String url : allowedDomains) {
-                    if (request.getUrl().getHost().endsWith(url)) {
-                        allowed = true;
-                    }
-                }
-                if (!allowed) {
+                if (!isAllowed(request.getUrl().getHost())) {
                     Log.d(TAG, "[shouldOverrideUrlLoading][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
-
                     return true; //Deny URLs not on ALLOWLIST
                 }
                 return false;
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request != null && request.isForMainFrame()) {
+                    Log.w(TAG, "[onReceivedError] " + error.getErrorCode() + ": " + error.getDescription() + " @ " + request.getUrl());
+                }
             }
         });
 
@@ -312,6 +320,7 @@ public class MainActivity extends Activity {
 
     public void resetChat()  {
 
+        chatWebView.clearCache(true);
         chatWebView.clearFormData();
         chatWebView.clearHistory();
         chatWebView.clearMatches();
@@ -327,14 +336,26 @@ public class MainActivity extends Activity {
     }
 
     private static void initURLs() {
-        //Allowed Domains
-        allowedDomains.add("google.com");
-        allowedDomains.add("gemini.google.com");
-        allowedDomains.add("accounts.google.com");
-        allowedDomains.add("gstatic.com");
-        allowedDomains.add("googletagmanager.com");
-        allowedDomains.add("googleusercontent.com");
-        allowedDomains.add("googleapis.com");
+        allowedDomains.clear();  //onCreate can run more than once, do not accumulate duplicates
+        //Allowed domains. An entry covers exactly that host plus its subdomains,
+        //see isAllowed(). Keep this list as small as the app still works with.
+        allowedDomains.add("gemini.google.com");      //the chat app itself
+        allowedDomains.add("accounts.google.com");    //sign-in
+        allowedDomains.add("apis.google.com");        //sign-in and account switcher scripts
+        allowedDomains.add("play.google.com");        //part of the sign-in redirect chain
+        allowedDomains.add("www.google.com");         //reCAPTCHA during sign-in
+        allowedDomains.add("gstatic.com");            //static assets and fonts
+        allowedDomains.add("googleusercontent.com");  //avatars, uploaded and generated images
+        allowedDomains.add("googleapis.com");         //backend APIs used by the app
+    }
+
+    private static boolean isAllowed(String host) {
+        if (host == null) return false;
+        for (String domain : allowedDomains) {
+            //Match on a dot boundary so that e.g. "notgoogle.com" does not pass as "google.com"
+            if (host.equals(domain) || host.endsWith("." + domain)) return true;
+        }
+        return false;
     }
 
     @Override
@@ -393,20 +414,11 @@ public class MainActivity extends Activity {
                     Toast.makeText(this, "SRC_ANCHOR: " + url, Toast.LENGTH_SHORT).show();
                 }
                 String host = Uri.parse(url).getHost();
-                if (host != null) {
-                    boolean allowed = false;
-                    for (String domain : allowedDomains) {
-                        if (host.endsWith(domain)) {
-                            allowed = true;
-                            break;
-                        }
-                    }
-                    if (!allowed) {  //Copy URLs that are not allowed to open to clipboard
-                        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                        ClipData clip = ClipData.newPlainText(getString(R.string.app_name), url);
-                        clipboard.setPrimaryClip(clip);
-                        Toast.makeText(this, getString(R.string.url_copied), Toast.LENGTH_SHORT).show();
-                    }
+                if (host != null && !isAllowed(host)) {  //Copy URLs that are not allowed to open to clipboard
+                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    ClipData clip = ClipData.newPlainText(getString(R.string.app_name), url);
+                    clipboard.setPrimaryClip(clip);
+                    Toast.makeText(this, getString(R.string.url_copied), Toast.LENGTH_SHORT).show();
                 }
             }
         }

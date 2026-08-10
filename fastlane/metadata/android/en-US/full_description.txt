@@ -1,4 +1,5 @@
-Gemini Assist is a simple WebView wrapper for Google Gemini. It blocks all URLs that are not essential for functioning.
+geminiAssist is a simple WebView wrapper for Google Gemini. It blocks all URLs that are not essential for functioning.
 
 You can switch on/off blocking by clicking the button at the top right.
 Swipe up a bit to hide the button.
+Long press the button to reset the chat. This clears cookies, cache and site data, and signs you out.

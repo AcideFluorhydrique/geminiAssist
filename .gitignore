@@ -27,3 +27,6 @@ captures/
 # 編譯生成的安裝包
 *.apk
 *.aab
+
+# AI 工具的本機設定
+.claude/

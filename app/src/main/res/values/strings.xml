@@ -10,4 +10,8 @@
     <string name="all_urls">All URLs allowed</string>
     <string name="urls_restricted">URLs restricted</string>
     <string name="url_copied">URL copied</string>
+    <!-- Reset chat, long press the restrict button -->
+    <string name="reset_chat">Reset chat</string>
+    <string name="reset_chat_confirm">This clears cookies, cache and site data, and signs you out. Continue?</string>
+    <string name="reset_chat_done">Chat reset</string>
 </resources>

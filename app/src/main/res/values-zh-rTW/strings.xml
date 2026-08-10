@@ -11,4 +11,8 @@
     <string name="all_urls">所有URL都允許</string>
     <string name="urls_restricted">URL受到限制</string>
     <string name="url_copied">URL已複製</string>
+    <!-- Reset chat, long press the restrict button -->
+    <string name="reset_chat">重設對話</string>
+    <string name="reset_chat_confirm">這將清除 Cookie、快取和網站資料，並使您登出。是否繼續？</string>
+    <string name="reset_chat_done">對話已重設</string>
 </resources>

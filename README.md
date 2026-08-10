@@ -1,33 +1,4 @@
- ```
-Google has announced that, starting in 2026/2027, all apps on certified Android devices
-will require the developer to submit personal identity details directly to Google.
-Since the developers of this app do not agree to this requirement, this app will no longer 
-work on certified Android devices after that time.
-```
-
-
-**Support Developer**  `AcideFluorhydrique`
-
-<!-- ---
-
-### Bitcoin (BTC)
-`你的比特币钱包地址填在这里` -->
-
-[![Donate with Bitcoin](https://img.shields.io/badge/Donate-Bitcoin-orange?style=for-the-badge&logo=bitcoin)](bitcoin:bc1qhj6yuszhcu5mhydrhn72l29pnr5uaapqsnqwk6)
-
-> **Note:** Please double-check the address before sending. Thank you for your support!
-
 # geminiAssist
-
-<!--
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80">](https://f-droid.org/en/packages/io.github.acidefluorhydrique.geminiassist/)
-[<img src="https://github.com/machiav3lli/oandbackupx/blob/034b226cea5c1b30eb4f6a6f313e4dadcbb0ece4/badge_github.png"
-    alt="Get it on GitHub"
-    height="80">](https://github.com/AcideFluorhydrique/geminiAssist/releases)
-
--->
 
 <p>
   <a href="https://f-droid.org/en/packages/io.github.acidefluorhydrique.geminiassist/">
@@ -41,17 +12,19 @@ work on certified Android devices after that time.
   </a>
 </p>
 
-
 geminiAssist is a simple WebView wrapper for Gemini. It blocks all URLs which are not essential.
 
 - 🔒 **Privacy-focused**: Blocks unnecessary URLs and tracking
-- 🎯 **Focused interface**: Clean chat experience without browser distractions  
+- 🎯 **Focused interface**: Clean chat experience without browser distractions
 - 🔄 **Toggle blocking**: Switch between restricted and unrestricted modes
 - 📱 **Lightweight**: Minimal app focused on core functionality
 
-You can switch on/off blocking by clicking the button at the top right.
-Swipe up a bit to hide the button.
+## Usage
 
+- Click the button at the top right to switch URL blocking on/off.
+- Swipe up a bit to hide the button.
+- **Long press** the button to reset the chat. This clears cookies, cache and site
+  data, and signs you out.
 
 ## License
 
@@ -70,3 +43,19 @@ If you find a bug, please open an issue in the Github repository, assuming one d
 
 If you know the solution to a bug please report it in the corresponding issue and if possible modify the code and create a pull request.
 
+## Notice
+
+```
+Google has announced that, starting in 2026/2027, all apps on certified Android devices
+will require the developer to submit personal identity details directly to Google.
+Since the developers of this app do not agree to this requirement, this app will no longer
+work on certified Android devices after that time.
+```
+
+## Support Developer
+
+`AcideFluorhydrique`
+
+[![Donate with Bitcoin](https://img.shields.io/badge/Donate-Bitcoin-orange?style=for-the-badge&logo=bitcoin)](bitcoin:bc1qhj6yuszhcu5mhydrhn72l29pnr5uaapqsnqwk6)
+
+> **Note:** Please double-check the address before sending. Thank you for your support!
