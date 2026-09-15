@@ -21,18 +21,24 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
+import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 
+import android.media.MediaScannerConnection;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.KeyEvent;
@@ -41,6 +47,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
+import android.webkit.MimeTypeMap;
 import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -56,11 +63,22 @@ import android.webkit.ValueCallback;
 import android.net.Uri;
 
 import androidx.webkit.URLUtilCompat;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
 
+import org.json.JSONObject;
 import org.woheller69.freeDroidWarn.FreeDroidWarn;
 
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
 
@@ -78,6 +96,13 @@ public class MainActivity extends Activity {
 
     private ValueCallback<Uri[]> mUploadMessage;
     private final static int FILE_CHOOSER_REQUEST_CODE = 1;
+    private final static int STORAGE_PERMISSION_REQUEST_CODE = 101;
+
+    private static final String GEMINI_ORIGIN = "https://gemini.google.com";
+    private static final String DOWNLOAD_JS_OBJECT = "geminiAssistDownload";
+
+    private android.webkit.PermissionRequest pendingPermissionRequest;  //waits for the RECORD_AUDIO runtime permission
+    private String[] pendingBlobDownload;  //url, filename, mimetype waiting for the storage permission
 
     @Override
     protected void onPause() {
@@ -198,9 +223,10 @@ public class MainActivity extends Activity {
                         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                             request.grant(request.getResources());
                         } else {
-                            // Request the permission from the user
+                            // Keep the request and answer it in onRequestPermissionsResult, otherwise the first recording never starts
+                            if (pendingPermissionRequest != null) pendingPermissionRequest.deny();
+                            pendingPermissionRequest = request;
                             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 123);
-                            // A more robust solution would involve storing 'request' and calling request.grant() in onRequestPermissionsResult.
                         }
                     } else {
                         request.deny();
@@ -240,10 +266,12 @@ public class MainActivity extends Activity {
                     return false;
                 }
                 if (!request.getUrl().toString().startsWith("https://")) {
+                    if (isLinkTap(request)) return openInBrowser(request.getUrl());
                     Log.d(TAG, "[shouldOverrideUrlLoading][NON-HTTPS] Blocked access to " + request.getUrl().toString());
                     return true; //Deny URLs that aren't HTTPS
                 }
                 if (!isAllowed(request.getUrl().getHost())) {
+                    if (isLinkTap(request)) return openInBrowser(request.getUrl());
                     Log.d(TAG, "[shouldOverrideUrlLoading][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
                     return true; //Deny URLs not on ALLOWLIST
                 }
@@ -261,6 +289,10 @@ public class MainActivity extends Activity {
         });
 
         chatWebView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+            if (url.startsWith("blob:")) {  //DownloadManager only handles http(s), e.g. generated images are blobs
+                downloadBlob(url, URLUtilCompat.getFilenameFromContentDisposition(contentDisposition), mimetype);
+                return;
+            }
             Uri source = Uri.parse(url);
             Log.d(TAG,"DownloadManager: " + url);
             DownloadManager.Request request = new DownloadManager.Request(source);
@@ -277,6 +309,19 @@ public class MainActivity extends Activity {
             assert dm != null;
             dm.enqueue(request);
         });
+
+        //Bridge used by downloadBlob(). Only the Gemini origin can post to it, even in unrestricted mode.
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            WebViewCompat.addWebMessageListener(chatWebView, DOWNLOAD_JS_OBJECT, Collections.singleton(GEMINI_ORIGIN),
+                    (view, message, sourceOrigin, isMainFrame, replyProxy) -> onBlobReceived(message.getData()));
+        }
+        //Pages often revoke a blob URL right after starting the download, before downloadBlob() can read it
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addDocumentStartJavaScript(chatWebView,
+                    "(function(){var revoke=URL.revokeObjectURL;" +
+                    "URL.revokeObjectURL=function(u){setTimeout(function(){revoke.call(URL,u);},60000);};})();",
+                    Collections.singleton(GEMINI_ORIGIN));
+        }
 
         //Set more options
         chatWebSettings = chatWebView.getSettings();
@@ -338,6 +383,120 @@ public class MainActivity extends Activity {
 
     }
 
+    //A navigation the user started by tapping a web link (not a redirect, script or subframe)
+    private static boolean isLinkTap(WebResourceRequest request) {
+        String scheme = request.getUrl().getScheme();
+        return request.isForMainFrame() && request.hasGesture()
+                && ("https".equals(scheme) || "http".equals(scheme));
+    }
+
+    private boolean openInBrowser(Uri url) {
+        Log.d(TAG, "[openInBrowser] " + url);
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, url));
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(context, R.string.no_app_for_link, Toast.LENGTH_SHORT).show();
+        }
+        return true;
+    }
+
+    //A blob URL only exists inside the page that created it, so the page reads it and posts the bytes back
+    private void downloadBlob(String url, String filename, String mimetype) {
+        if (!url.startsWith("blob:" + GEMINI_ORIGIN + "/") || !WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            Log.w(TAG, "[downloadBlob] Unsupported blob download: " + url);
+            Toast.makeText(context, R.string.download_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            pendingBlobDownload = new String[]{url, filename, mimetype};
+            requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, STORAGE_PERMISSION_REQUEST_CODE);
+            return;
+        }
+        Log.d(TAG, "[downloadBlob] " + url);
+        String js = "(function(){" +
+                "var post=function(m){" + DOWNLOAD_JS_OBJECT + ".postMessage(JSON.stringify(m));};" +
+                "fetch(" + JSONObject.quote(url) + ")" +
+                ".then(function(r){return r.blob();})" +
+                ".then(function(b){" +
+                "var fr=new FileReader();" +
+                "fr.onload=function(){post({name:" + JSONObject.quote(filename == null ? "" : filename) +
+                ",type:b.type||" + JSONObject.quote(mimetype == null ? "" : mimetype) + ",data:fr.result});};" +
+                "fr.onerror=function(){post({error:String(fr.error)});};" +
+                "fr.readAsDataURL(b);})" +
+                ".catch(function(e){post({error:String(e)});});" +
+                "})();";
+        chatWebView.evaluateJavascript(js, null);
+    }
+
+    private void onBlobReceived(String json) {
+        new Thread(() -> {  //decoding and writing a large image would block the UI thread
+            try {
+                JSONObject blob = new JSONObject(json);
+                if (blob.has("error")) throw new IOException(blob.getString("error"));
+                String mimetype = blob.optString("type");
+                String data = blob.getString("data");
+                byte[] bytes = Base64.decode(data.substring(data.indexOf(',') + 1), Base64.DEFAULT);
+                String filename = blobFilename(blob.optString("name"), mimetype);
+                String saved = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                        ? saveToMediaStore(bytes, filename, mimetype)
+                        : saveToDownloadsDir(bytes, filename, mimetype);
+                runOnUiThread(() -> Toast.makeText(context, getString(R.string.download_saved) + "\n" + saved, Toast.LENGTH_SHORT).show());
+            } catch (Exception e) {
+                Log.e(TAG, "[onBlobReceived] Saving blob failed", e);
+                runOnUiThread(() -> Toast.makeText(context, R.string.download_failed, Toast.LENGTH_SHORT).show());
+            }
+        }).start();
+    }
+
+    private static String blobFilename(String name, String mimetype) {
+        name = name.replaceAll("[/\\\\:]", "_");  //never let the page pick a directory
+        if (name.isEmpty() || name.startsWith(".")) {
+            name = "Gemini_" + new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+        }
+        String extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimetype);
+        if (extension != null && !name.contains(".")) name += "." + extension;
+        return name;
+    }
+
+    @TargetApi(Build.VERSION_CODES.Q)
+    private String saveToMediaStore(byte[] bytes, String filename, String mimetype) throws IOException {
+        ContentResolver resolver = getContentResolver();
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.Downloads.DISPLAY_NAME, filename);
+        values.put(MediaStore.Downloads.MIME_TYPE, mimetype.isEmpty() ? "application/octet-stream" : mimetype);
+        values.put(MediaStore.Downloads.IS_PENDING, 1);
+        Uri item = resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values);
+        if (item == null) throw new IOException("MediaStore insert failed for " + filename);
+        try (OutputStream out = resolver.openOutputStream(item)) {
+            if (out == null) throw new IOException("Cannot open " + item);
+            out.write(bytes);
+        } catch (IOException e) {
+            resolver.delete(item, null, null);
+            throw e;
+        }
+        values.clear();
+        values.put(MediaStore.Downloads.IS_PENDING, 0);
+        resolver.update(item, values, null, null);
+        return filename;
+    }
+
+    private String saveToDownloadsDir(byte[] bytes, String filename, String mimetype) throws IOException {
+        File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Cannot create " + dir);
+        int dot = filename.lastIndexOf('.');
+        String base = dot > 0 ? filename.substring(0, dot) : filename;
+        String extension = dot > 0 ? filename.substring(dot) : "";
+        File file = new File(dir, filename);
+        for (int i = 1; file.exists(); i++) file = new File(dir, base + " (" + i + ")" + extension);  //do not overwrite
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(bytes);
+        }
+        MediaScannerConnection.scanFile(context, new String[]{file.getAbsolutePath()},
+                mimetype.isEmpty() ? null : new String[]{mimetype}, null);
+        return file.getName();
+    }
+
     private static void initURLs() {
         allowedDomains.clear();  //onCreate can run more than once, do not accumulate duplicates
         //Allowed domains. An entry covers exactly that host plus its subdomains,
@@ -388,6 +547,10 @@ public class MainActivity extends Activity {
         if (result.getExtra() != null) {
             if (result.getType() == IMAGE_TYPE) {
                 url = result.getExtra();
+                if (url.startsWith("blob:")) {
+                    downloadBlob(url, null, null);
+                    return;
+                }
                 Uri source = Uri.parse(url);
                 DownloadManager.Request request = new DownloadManager.Request(source);
                 request.addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url));
@@ -445,12 +608,22 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         if (requestCode == 123) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(context, "Microphone permission granted.", Toast.LENGTH_SHORT).show();
-            } else {
+            if (pendingPermissionRequest != null) {  //answer the WebView request that was waiting for this
+                if (granted) pendingPermissionRequest.grant(pendingPermissionRequest.getResources());
+                else pendingPermissionRequest.deny();
+                pendingPermissionRequest = null;
+            }
+            if (!granted) {
                 Toast.makeText(context, "Microphone permission denied.", Toast.LENGTH_SHORT).show();
             }
+        }
+        if (requestCode == STORAGE_PERMISSION_REQUEST_CODE) {
+            String[] download = pendingBlobDownload;
+            pendingBlobDownload = null;
+            if (granted && download != null) downloadBlob(download[0], download[1], download[2]);
+            else Toast.makeText(context, R.string.download_failed, Toast.LENGTH_SHORT).show();
         }
         // Handle other permission requests if any (like FILE_CHOOSER_REQUEST_CODE)
         if (requestCode == 100) { // This is the request code for READ_EXTERNAL_STORAGE from onShowFileChooser

@@ -8,6 +8,9 @@
     <string name="dialog_Later_button">稍後再說</string>
     <string name="dialog_StarOnGitHub">您喜歡這個應用程式嗎？請在GitHub上給個星星。</string>
     <string name="download">下載開始了：</string>
+    <string name="download_saved">已儲存至下載：</string>
+    <string name="download_failed">下載失敗</string>
+    <string name="no_app_for_link">找不到可開啟此連結的應用程式</string>
     <string name="all_urls">所有URL都允許</string>
     <string name="urls_restricted">URL受到限制</string>
     <string name="url_copied">URL已複製</string>

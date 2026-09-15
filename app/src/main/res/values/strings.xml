@@ -7,6 +7,9 @@
     <string name="dialog_Later_button">Maybe later</string>
     <string name="dialog_StarOnGitHub">Do you like this app? Please give a star on GitHub.</string>
     <string name="download">Download started:</string>
+    <string name="download_saved">Saved to Downloads:</string>
+    <string name="download_failed">Download failed</string>
+    <string name="no_app_for_link">No app found to open this link</string>
     <string name="all_urls">All URLs allowed</string>
     <string name="urls_restricted">URLs restricted</string>
     <string name="url_copied">URL copied</string>

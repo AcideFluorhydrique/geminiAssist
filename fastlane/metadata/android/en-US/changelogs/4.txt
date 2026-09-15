@@ -1,0 +1,3 @@
+Fixed voice input not starting the first time the microphone permission is granted.
+Tapping a link outside the allowlist now opens it in your browser instead of doing nothing.
+Generated images (blob URLs) can now be downloaded, both via the download button and by long pressing the image. Previously long pressing crashed the app.
