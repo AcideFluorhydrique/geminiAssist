@@ -17,4 +17,5 @@
     <string name="reset_chat">重置会话</string>
     <string name="reset_chat_confirm">这将清除 Cookie、缓存和网站数据，并使您退出登录。是否继续？</string>
     <string name="reset_chat_done">会话已重置</string>
+    <string name="mic_permission_denied">麦克风权限被拒绝</string>
 </resources>

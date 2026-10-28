@@ -35,7 +35,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
-import android.os.HandlerThread;
+import android.os.Looper;
 import android.os.Message;
 import android.provider.MediaStore;
 import android.util.Base64;
@@ -197,11 +197,7 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                    if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                        requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, 100);
-                    }
-                }
+                //ACTION_GET_CONTENT grants access to the picked file, no storage permission needed
                 if (mUploadMessage != null) {
                     mUploadMessage.onReceiveValue(null);
                     mUploadMessage = null;
@@ -337,6 +333,7 @@ public class MainActivity extends Activity {
         chatWebSettings.setDisplayZoomControls(false);
         chatWebSettings.setSaveFormData(false);
         chatWebSettings.setGeolocationEnabled(false);
+        chatWebSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
 
         //Load ChatGPT
         chatWebView.loadUrl(urlToLoad);
@@ -564,29 +561,28 @@ public class MainActivity extends Activity {
                 DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
                 assert dm != null;
                 dm.enqueue(request);
-            } else if (result.getType() == SRC_IMAGE_ANCHOR_TYPE || result.getType() == SRC_ANCHOR_TYPE) {
-                if (result.getType() == SRC_IMAGE_ANCHOR_TYPE) {
-                    // Create a background thread that has a Looper
-                    HandlerThread handlerThread = new HandlerThread("HandlerThread");
-                    handlerThread.start();
-                    // Create a handler to execute tasks in the background thread.
-                    Handler backgroundHandler = new Handler(handlerThread.getLooper());
-                    Message msg = backgroundHandler.obtainMessage();
-                    chatWebView.requestFocusNodeHref(msg);
-                    url = (String) msg.getData().get("url");
-                    Toast.makeText(this, "SRC_IMAGE: " + url, Toast.LENGTH_SHORT).show();
-                } else if (result.getType() == SRC_ANCHOR_TYPE) {
-                    url = result.getExtra();
-                    Toast.makeText(this, "SRC_ANCHOR: " + url, Toast.LENGTH_SHORT).show();
-                }
-                String host = Uri.parse(url).getHost();
-                if (host != null && !isAllowed(host)) {  //Copy URLs that are not allowed to open to clipboard
-                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    ClipData clip = ClipData.newPlainText(getString(R.string.app_name), url);
-                    clipboard.setPrimaryClip(clip);
-                    Toast.makeText(this, getString(R.string.url_copied), Toast.LENGTH_SHORT).show();
-                }
+            } else if (result.getType() == SRC_IMAGE_ANCHOR_TYPE) {
+                //getExtra() is the image here, the link target is only delivered asynchronously
+                Message msg = new Handler(Looper.getMainLooper(), m -> {
+                    copyIfNotAllowed(m.getData().getString("url"));
+                    return true;
+                }).obtainMessage();
+                chatWebView.requestFocusNodeHref(msg);
+            } else if (result.getType() == SRC_ANCHOR_TYPE) {
+                copyIfNotAllowed(result.getExtra());
             }
+        }
+    }
+
+    //Copy URLs that are not allowed to open to clipboard
+    private void copyIfNotAllowed(String url) {
+        if (url == null) return;
+        String host = Uri.parse(url).getHost();
+        if (host != null && !isAllowed(host)) {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText(getString(R.string.app_name), url);
+            clipboard.setPrimaryClip(clip);
+            Toast.makeText(this, getString(R.string.url_copied), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -616,7 +612,7 @@ public class MainActivity extends Activity {
                 pendingPermissionRequest = null;
             }
             if (!granted) {
-                Toast.makeText(context, "Microphone permission denied.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, R.string.mic_permission_denied, Toast.LENGTH_SHORT).show();
             }
         }
         if (requestCode == STORAGE_PERMISSION_REQUEST_CODE) {
@@ -624,14 +620,6 @@ public class MainActivity extends Activity {
             pendingBlobDownload = null;
             if (granted && download != null) downloadBlob(download[0], download[1], download[2]);
             else Toast.makeText(context, R.string.download_failed, Toast.LENGTH_SHORT).show();
-        }
-        // Handle other permission requests if any (like FILE_CHOOSER_REQUEST_CODE)
-        if (requestCode == 100) { // This is the request code for READ_EXTERNAL_STORAGE from onShowFileChooser
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission granted for file access
-            } else {
-                Toast.makeText(context, "Storage permission denied.", Toast.LENGTH_SHORT).show();
-            }
         }
     }
 
