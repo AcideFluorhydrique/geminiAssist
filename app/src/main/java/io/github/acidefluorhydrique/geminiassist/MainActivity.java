@@ -96,6 +96,7 @@ public class MainActivity extends Activity {
     private String TAG ="geminiAssist";
     private String urlToLoad = "https://gemini.google.com/";
     private static boolean restricted = true;
+    private boolean buttonDragging = false;  //the user is moving the button, do not snap it back on layout
 
     private static final ArrayList<String> allowedDomains = new ArrayList<String>();
 
@@ -394,19 +395,14 @@ public class MainActivity extends Activity {
         View parent = (View) restrictedButton.getParent();
         int touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
 
-        //Restore when the screen size changes, and when the button reappears after being hidden (it has no size while GONE)
-        View.OnLayoutChangeListener restorePosition = (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
-            if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
-                moveButton(prefs.getFloat("buttonX", 1f) * (parent.getWidth() - restrictedButton.getWidth()),
-                        prefs.getFloat("buttonY", 0f) * (parent.getHeight() - restrictedButton.getHeight()));
-            }
-        };
-        parent.addOnLayoutChangeListener(restorePosition);
-        restrictedButton.addOnLayoutChangeListener(restorePosition);
+        //Re-apply after every layout: a new screen size, the system bar insets arriving (they change the
+        //padding, not the size) or the button reappearing after being hidden all reset its position
+        parent.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (!buttonDragging) placeButton(prefs.getFloat("buttonX", 1f), prefs.getFloat("buttonY", 0f));
+        });
 
         restrictedButton.setOnTouchListener(new View.OnTouchListener() {
             private float downRawX, downRawY, downX, downY;
-            private boolean dragging;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -416,30 +412,30 @@ public class MainActivity extends Activity {
                         downRawY = event.getRawY();
                         downX = v.getX();
                         downY = v.getY();
-                        dragging = false;
+                        buttonDragging = false;
                         return false;
                     case MotionEvent.ACTION_MOVE:
                         float dx = event.getRawX() - downRawX;
                         float dy = event.getRawY() - downRawY;
-                        if (!dragging && Math.hypot(dx, dy) > touchSlop) {
-                            dragging = true;
+                        if (!buttonDragging && Math.hypot(dx, dy) > touchSlop) {
+                            buttonDragging = true;
                             //Cancel the pending click and long click, the drag owns the gesture from now on
                             MotionEvent cancel = MotionEvent.obtain(event);
                             cancel.setAction(MotionEvent.ACTION_CANCEL);
                             v.onTouchEvent(cancel);
                             cancel.recycle();
                         }
-                        if (dragging) moveButton(downX + dx, downY + dy);
-                        return dragging;
+                        if (buttonDragging) moveButton(downX + dx, downY + dy);
+                        return buttonDragging;
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
-                        if (!dragging) return false;
-                        dragging = false;
-                        int freeX = parent.getWidth() - v.getWidth();
-                        int freeY = parent.getHeight() - v.getHeight();
+                        if (!buttonDragging) return false;
+                        buttonDragging = false;
+                        int freeX = buttonFreeWidth();
+                        int freeY = buttonFreeHeight();
                         prefs.edit()
-                                .putFloat("buttonX", freeX > 0 ? v.getX() / freeX : 1f)
-                                .putFloat("buttonY", freeY > 0 ? v.getY() / freeY : 0f)
+                                .putFloat("buttonX", freeX > 0 ? (v.getX() - parent.getPaddingLeft()) / freeX : 1f)
+                                .putFloat("buttonY", freeY > 0 ? (v.getY() - parent.getPaddingTop()) / freeY : 0f)
                                 .apply();
                         return true;
                 }
@@ -448,10 +444,29 @@ public class MainActivity extends Activity {
         });
     }
 
+    //The parent pads itself for the system bars (fitsSystemWindows), keep the button inside that padding
+    //or it ends up under the status bar
+    private int buttonFreeWidth() {
+        View parent = (View) restrictedButton.getParent();
+        return parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight() - restrictedButton.getWidth();
+    }
+
+    private int buttonFreeHeight() {
+        View parent = (View) restrictedButton.getParent();
+        return parent.getHeight() - parent.getPaddingTop() - parent.getPaddingBottom() - restrictedButton.getHeight();
+    }
+
+    private void placeButton(float fractionX, float fractionY) {
+        View parent = (View) restrictedButton.getParent();
+        moveButton(parent.getPaddingLeft() + fractionX * buttonFreeWidth(), parent.getPaddingTop() + fractionY * buttonFreeHeight());
+    }
+
     private void moveButton(float x, float y) {
         View parent = (View) restrictedButton.getParent();
-        restrictedButton.setX(Math.max(0, Math.min(x, parent.getWidth() - restrictedButton.getWidth())));
-        restrictedButton.setY(Math.max(0, Math.min(y, parent.getHeight() - restrictedButton.getHeight())));
+        float minX = parent.getPaddingLeft();
+        float minY = parent.getPaddingTop();
+        restrictedButton.setX(Math.max(minX, Math.min(x, minX + buttonFreeWidth())));
+        restrictedButton.setY(Math.max(minY, Math.min(y, minY + buttonFreeHeight())));
     }
 
     //A navigation the user started by tapping a web link (not a redirect, script or subframe)
