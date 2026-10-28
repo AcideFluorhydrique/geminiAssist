@@ -17,4 +17,5 @@
     <string name="reset_chat">Reset chat</string>
     <string name="reset_chat_confirm">This clears cookies, cache and site data, and signs you out. Continue?</string>
     <string name="reset_chat_done">Chat reset</string>
+    <string name="mic_permission_denied">Microphone permission denied</string>
 </resources>

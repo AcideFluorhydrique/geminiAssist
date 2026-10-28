@@ -1,0 +1,5 @@
+Your sign-in cookies and site data are no longer included in Android backups or device-to-device transfers.
+Cleartext (HTTP) and mixed content are now always blocked.
+The storage permission is no longer requested when attaching a file, it was never needed.
+Long pressing a link no longer shows a debug message, and links behind images are copied correctly.
+The "microphone permission denied" message is now translated.

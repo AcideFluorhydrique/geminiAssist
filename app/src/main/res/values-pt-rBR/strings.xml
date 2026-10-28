@@ -9,4 +9,5 @@
     <string name="all_urls">Todas as URLs permitidas</string>
     <string name="urls_restricted">URLs restritas</string>
     <string name="url_copied">URL copiada</string>
+    <string name="mic_permission_denied">Permissão do microfone negada</string>
 </resources>
