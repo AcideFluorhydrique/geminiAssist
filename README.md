@@ -23,6 +23,7 @@ geminiAssist is a simple WebView wrapper for Gemini. It blocks all URLs which ar
 
 - Click the button at the top right to switch URL blocking on/off.
 - Swipe up a bit to hide the button.
+- **Drag** the button to move it anywhere on the screen. Its position is remembered.
 - **Long press** the button to reset the chat. This clears cookies, cache and site
   data, and signs you out.
 
