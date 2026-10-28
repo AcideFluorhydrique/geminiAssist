@@ -17,6 +17,7 @@ import static android.webkit.WebView.HitTestResult.IMAGE_TYPE;
 import static android.webkit.WebView.HitTestResult.SRC_ANCHOR_TYPE;
 import static android.webkit.WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE;
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -28,6 +29,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 
 import android.media.MediaScannerConnection;
@@ -37,12 +39,15 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.preference.PreferenceManager;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
@@ -91,6 +96,7 @@ public class MainActivity extends Activity {
     private String TAG ="geminiAssist";
     private String urlToLoad = "https://gemini.google.com/";
     private static boolean restricted = true;
+    private boolean buttonDragging = false;  //the user is moving the button, do not snap it back on layout
 
     private static final ArrayList<String> allowedDomains = new ArrayList<String>();
 
@@ -175,6 +181,7 @@ public class MainActivity extends Activity {
         chatWebView = findViewById(R.id.chatWebView);
         registerForContextMenu(chatWebView);
         restrictedButton = findViewById(R.id.restricted);
+        makeButtonDraggable();
 
         //Set cookie options
         chatCookieManager = CookieManager.getInstance();
@@ -378,6 +385,88 @@ public class MainActivity extends Activity {
         chatWebView.loadUrl(urlToLoad);
 
 
+    }
+
+    //Let the user move the button away from Gemini's own controls, e.g. the temporary chat button (issue #2).
+    //The position is stored as a fraction of the free space, so it survives rotation and resizing.
+    @SuppressLint("ClickableViewAccessibility")  //taps are not consumed here, the button still handles click and long click
+    private void makeButtonDraggable() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        View parent = (View) restrictedButton.getParent();
+        int touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+
+        //Re-apply after every layout: a new screen size, the system bar insets arriving (they change the
+        //padding, not the size) or the button reappearing after being hidden all reset its position
+        parent.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            if (!buttonDragging) placeButton(prefs.getFloat("buttonX", 1f), prefs.getFloat("buttonY", 0f));
+        });
+
+        restrictedButton.setOnTouchListener(new View.OnTouchListener() {
+            private float downRawX, downRawY, downX, downY;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        downRawX = event.getRawX();
+                        downRawY = event.getRawY();
+                        downX = v.getX();
+                        downY = v.getY();
+                        buttonDragging = false;
+                        return false;
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = event.getRawX() - downRawX;
+                        float dy = event.getRawY() - downRawY;
+                        if (!buttonDragging && Math.hypot(dx, dy) > touchSlop) {
+                            buttonDragging = true;
+                            //Cancel the pending click and long click, the drag owns the gesture from now on
+                            MotionEvent cancel = MotionEvent.obtain(event);
+                            cancel.setAction(MotionEvent.ACTION_CANCEL);
+                            v.onTouchEvent(cancel);
+                            cancel.recycle();
+                        }
+                        if (buttonDragging) moveButton(downX + dx, downY + dy);
+                        return buttonDragging;
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        if (!buttonDragging) return false;
+                        buttonDragging = false;
+                        int freeX = buttonFreeWidth();
+                        int freeY = buttonFreeHeight();
+                        prefs.edit()
+                                .putFloat("buttonX", freeX > 0 ? (v.getX() - parent.getPaddingLeft()) / freeX : 1f)
+                                .putFloat("buttonY", freeY > 0 ? (v.getY() - parent.getPaddingTop()) / freeY : 0f)
+                                .apply();
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    //The parent pads itself for the system bars (fitsSystemWindows), keep the button inside that padding
+    //or it ends up under the status bar
+    private int buttonFreeWidth() {
+        View parent = (View) restrictedButton.getParent();
+        return parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight() - restrictedButton.getWidth();
+    }
+
+    private int buttonFreeHeight() {
+        View parent = (View) restrictedButton.getParent();
+        return parent.getHeight() - parent.getPaddingTop() - parent.getPaddingBottom() - restrictedButton.getHeight();
+    }
+
+    private void placeButton(float fractionX, float fractionY) {
+        View parent = (View) restrictedButton.getParent();
+        moveButton(parent.getPaddingLeft() + fractionX * buttonFreeWidth(), parent.getPaddingTop() + fractionY * buttonFreeHeight());
+    }
+
+    private void moveButton(float x, float y) {
+        View parent = (View) restrictedButton.getParent();
+        float minX = parent.getPaddingLeft();
+        float minY = parent.getPaddingTop();
+        restrictedButton.setX(Math.max(minX, Math.min(x, minX + buttonFreeWidth())));
+        restrictedButton.setY(Math.max(minY, Math.min(y, minY + buttonFreeHeight())));
     }
 
     //A navigation the user started by tapping a web link (not a redirect, script or subframe)
