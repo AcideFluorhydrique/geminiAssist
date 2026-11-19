@@ -15,6 +15,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            //Installs next to the release build (F-Droid, GitHub) instead of replacing it
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
