@@ -263,8 +263,9 @@ def main():
         if not picked:
             describe('file picker, file not found')
         shot(out, '09-after-attach')
+    needs_sign_in = not picked and find(r'sign in to try')
     check('attach a picture (restricted)', picked, hard=False,
-          note='signed out, the + menu may offer no upload')
+          note='Gemini needs sign-in to upload, CI has no account' if needs_sign_in else '')
 
     # 8. No crash, and which hosts restricted mode blocked
     log = adb('logcat', '-d', timeout=300)

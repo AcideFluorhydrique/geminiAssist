@@ -8,10 +8,6 @@ name: Test in an emulator
 
 on:
   workflow_dispatch:
-  # Temporary, while this branch is being tested: workflow_dispatch only shows up
-  # once the file is on main. Remove before merging.
-  push:
-    branches: [test/emulator-ci]
 
 jobs:
   build:
