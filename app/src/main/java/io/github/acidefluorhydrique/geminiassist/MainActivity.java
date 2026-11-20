@@ -611,6 +611,8 @@ public class MainActivity extends Activity {
         allowedDomains.add("gstatic.com");            //static assets and fonts
         allowedDomains.add("googleusercontent.com");  //avatars, uploaded and generated images
         allowedDomains.add("googleapis.com");         //backend APIs used by the app
+        allowedDomains.add("push.clients6.google.com");          //file and image uploads (issue #5)
+        allowedDomains.add("geminiweb-pa.clients6.google.com");  //Gemini's own web API, called while uploading
     }
 
     private static boolean isAllowed(String host) {
