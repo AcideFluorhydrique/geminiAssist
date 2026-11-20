@@ -47,6 +47,20 @@ def shot(out, name):
 
 
 def nodes():
+    """UI nodes, after dismissing system "isn't responding" dialogs: the emulator's launcher
+    sometimes hangs and its dialog covers the app."""
+    for _ in range(3):
+        found = _nodes()
+        wait = [n for n in found if n[0] == 'Wait']
+        if not wait or not any("isn't responding" in n[0] for n in found):
+            return found
+        adb('shell', 'input', 'tap', *map(str, center(wait[0])))
+        print('dismissed an ANR dialog', flush=True)
+        time.sleep(2)
+    return _nodes()
+
+
+def _nodes():
     """UI nodes as (text, desc, id, x1, y1, x2, y2). uiautomator needs an idle UI and
     Gemini animates, so retry a few times."""
     for _ in range(4):
@@ -236,6 +250,7 @@ def main():
     # 7. + menu and attaching a picture in restricted mode (depends on the live site)
     opened = open_plus_menu()
     shot(out, '07-plus-menu-restricted')
+    describe('+ menu')
     check('+ menu opens (restricted)', opened, hard=False)
     picked = False
     if opened and tap(r'^(Upload )?files?$', r'upload file', r'^Files$', wait=5):
