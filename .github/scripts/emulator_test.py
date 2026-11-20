@@ -97,6 +97,14 @@ def tap(*patterns, wait=3, tries=3):
     return False
 
 
+def describe(label):
+    """Print what is on screen to the job log: the artifact screenshots are not always
+    at hand when reading a failed run."""
+    focus = re.findall(r'mCurrentFocus=(\S+ \S+ \S+)', adb('shell', 'dumpsys', 'window', 'windows'))
+    texts = [t or d for t, d, *_ in nodes() if t or d]
+    print(f'[{label}] focus: {focus[:1]} screen: {texts[:40]}', flush=True)
+
+
 def button():
     return find(r':id/restricted$')
 
@@ -182,6 +190,8 @@ def main():
         time.sleep(3)
         moved = button()
         p = prefs()
+        if not moved or 'buttonX' not in p:
+            describe('after drag')
         check('drag: button moved', moved and abs(center(moved)[0] - tx) < w // 10 and abs(center(moved)[1] - ty) < h // 10,
               note=f'now {center(moved) if moved else None}, target {(tx, ty)}')
         check('drag: position saved', 'buttonX' in p and 'buttonY' in p, note=str(p))
@@ -209,9 +219,14 @@ def main():
           note=f'{center(before) if before else None} -> {center(after) if after else None}')
 
     # 6. Swipe up hides the button, the hidden state survives a restart, swipe down shows it
-    adb('shell', 'input', 'swipe', str(w // 4), str(h * 3 // 4), str(w // 4), str(h // 3), '150')
-    time.sleep(3)
-    check('swipe up: button hidden', not button() and prefs().get('buttonHidden') == 'true')
+    for attempt in range(2):
+        adb('shell', 'input', 'swipe', str(w // 3), str(h * 3 // 4), str(w // 3), str(h // 4), '120')
+        time.sleep(3)
+        if prefs().get('buttonHidden') == 'true':
+            break
+        describe(f'swipe up attempt {attempt + 1}')
+    check('swipe up: button hidden', not button() and prefs().get('buttonHidden') == 'true',
+          note=str(prefs()))
     restart()
     check('restart: button still hidden', not button())
     adb('shell', 'input', 'swipe', str(w // 4), str(h // 3), str(w // 4), str(h * 3 // 4), '150')
@@ -225,10 +240,13 @@ def main():
     picked = False
     if opened and tap(r'^(Upload )?files?$', r'upload file', r'^Files$', wait=5):
         shot(out, '08-file-picker')
+        describe('file picker')
         if not find(r'geminiassist-test'):
             tap(r'show roots', r'navigate up', wait=2, tries=1)
             tap(r'^Downloads?$', wait=3, tries=2)
         picked = tap(r'geminiassist-test', wait=8)
+        if not picked:
+            describe('file picker, file not found')
         shot(out, '09-after-attach')
     check('attach a picture (restricted)', picked, hard=False,
           note='signed out, the + menu may offer no upload')
