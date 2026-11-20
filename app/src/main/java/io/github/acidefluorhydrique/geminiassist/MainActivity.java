@@ -126,15 +126,14 @@ public class MainActivity extends Activity {
 
         restrictedButton.setOnClickListener(v -> {
             restricted = !restricted;
+            PreferenceManager.getDefaultSharedPreferences(context).edit().putBoolean("restricted", restricted).apply();
             if (restricted) {
                 restrictedButton.setImageDrawable(getDrawable(R.drawable.restricted));
                 Toast.makeText(context,R.string.urls_restricted,Toast.LENGTH_SHORT).show();
-                chatWebSettings.setUserAgentString(modUserAgent());
             }
             else {
                 restrictedButton.setImageDrawable(getDrawable(R.drawable.unrestricted));
                 Toast.makeText(context,R.string.all_urls,Toast.LENGTH_SHORT).show();
-                chatWebSettings.setUserAgentString(modUserAgent()); //Needed for login via Google
             }
             chatWebView.reload();
         });
@@ -155,11 +154,11 @@ public class MainActivity extends Activity {
         swipeTouchListener = new SwipeTouchListener(context) {
             public void onSwipeBottom() {
                 if (!chatWebView.canScrollVertically(0)) {
-                    restrictedButton.setVisibility(View.VISIBLE);
+                    setButtonHidden(false);
                 }
             }
             public void onSwipeTop(){
-                    restrictedButton.setVisibility(View.GONE);
+                    setButtonHidden(true);
             }
         };
 
@@ -168,7 +167,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        restricted = true;
+        //Remember the last mode and whether the button was hidden; a fresh install starts restricted
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        restricted = prefs.getBoolean("restricted", true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             setTheme(android.R.style.Theme_DeviceDefault_DayNight);
         }
@@ -182,6 +183,7 @@ public class MainActivity extends Activity {
         registerForContextMenu(chatWebView);
         restrictedButton = findViewById(R.id.restricted);
         makeButtonDraggable();
+        if (prefs.getBoolean("buttonHidden", false)) restrictedButton.setVisibility(View.GONE);
 
         //Set cookie options
         chatCookieManager = CookieManager.getInstance();
@@ -329,6 +331,8 @@ public class MainActivity extends Activity {
         //Set more options
         chatWebSettings = chatWebView.getSettings();
         //Enable some WebView features
+        //Set once at startup and kept: switching it with the toggle changed Gemini's layout under the user (issue #5)
+        chatWebSettings.setUserAgentString(modUserAgent());
         chatWebSettings.setJavaScriptEnabled(true);
         chatWebSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
         chatWebSettings.setDomStorageEnabled(true);
@@ -675,20 +679,24 @@ public class MainActivity extends Activity {
         }
     }
 
+    //Phones get the mobile user agent without the WebView markers ("; wv", "Version/x"), which Google sign-in
+    //accepts, so Gemini keeps its mobile layout; its desktop popovers such as the + menu do not fit a phone (issue #5).
+    //Tablets (smallest width 600dp and up) get the desktop user agent, they have room for the desktop layout.
+    //Decided at startup, a foldable switches the next time the app is opened.
     public String modUserAgent(){
-
-        String newPrefix = "Mozilla/5.0 (X11; Linux "+ System.getProperty("os.arch") +")";
-
-        String newUserAgent=WebSettings.getDefaultUserAgent(context);
-        String prefix = newUserAgent.substring(0, newUserAgent.indexOf(")") + 1);
-         try {
-                newUserAgent=newUserAgent.replace(prefix,newPrefix);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-         return newUserAgent;
+        String userAgent = WebSettings.getDefaultUserAgent(context);
+        if (getResources().getConfiguration().smallestScreenWidthDp >= 600) {
+            int end = userAgent.indexOf(")");
+            if (end < 0) return userAgent;
+            return "Mozilla/5.0 (X11; Linux " + System.getProperty("os.arch") + ")" + userAgent.substring(end + 1);
+        }
+        return userAgent.replace("; wv", "").replaceAll("Version/[\\d.]+\\s", "");
     }
 
+    private void setButtonHidden(boolean hidden) {
+        restrictedButton.setVisibility(hidden ? View.GONE : View.VISIBLE);
+        PreferenceManager.getDefaultSharedPreferences(context).edit().putBoolean("buttonHidden", hidden).apply();
+    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {

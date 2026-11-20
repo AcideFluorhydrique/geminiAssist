@@ -10,11 +10,16 @@ android {
         applicationId "io.github.acidefluorhydrique.geminiassist"
         minSdk 21
         targetSdk 35
-        versionCode 5
-        versionName "1.4"
+        versionCode 6
+        versionName "1.5"
     }
 
     buildTypes {
+        debug {
+            //Installs next to the release build (F-Droid, GitHub) instead of replacing it
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
