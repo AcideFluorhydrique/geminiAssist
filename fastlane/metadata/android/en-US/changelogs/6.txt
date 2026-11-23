@@ -1,3 +1,4 @@
 Fixed the + menu being cut off after switching the blocking mode: phones now always get Gemini's mobile layout, tablets the desktop layout. Google sign-in works from the start.
 The blocking mode and whether the button is hidden are now remembered.
 Uploading images and files now works with blocking on.
+Dragging the button no longer closes the app when gesture navigation is on.
